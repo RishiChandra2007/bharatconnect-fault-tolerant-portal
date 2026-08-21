@@ -1,46 +1,37 @@
-# BharatConnect: Fault-Tolerant Distributed Telecom Portal & Load Lab
+## 📐 Retry Math & Algorithmic Design
+To prevent client synchronization during gateway timeouts, client retries utilize **Exponential Backoff with Full Jitter**:
 
-A decoupled microservice architecture engineered to analyze and solve high-congestion network drops during high-volume transactions. Built using a Node.js/Express API Gateway and an independent internal Processing Microservice running inside isolated Docker containers to showcase resilient system architecture.
+$$Delay = \text{random}(0, \text{Base Delay} \times 2^{\text{attempt}})$$
 
-## 🛠️ Distributed System Architecture
-Instead of a monolithic backend, this architecture splits system responsibilities across dedicated microservices communicating over an internal network. This prevents database pile-ups and isolates cascading failures.
+- **Attempt 1:** $\text{random}(0, 1000\text{ms})$
+- **Attempt 2:** $\text{random}(0, 2000\text{ms})$
+- **Attempt 3:** $\text{random}(0, 4000\text{ms})$
 
-### System Topography
-```text
-                           ┌───────────────── Distributed System ─────────────────┐
-                           │                                                      │
-[Frontend UI] ──► [Gateway Service (Port 5000)] ──► [Processing Service (Port 5001)]
-                           │                                                      │
-                           └──────────────────────────────────────────────────────┘
-```
-### The Math Under the Hood
-The smart retry interval expands exponentially based on consecutive failures, heavily padded by a randomized decorrelation factor (jitter) to distribute network demand across time:
+By picking a uniform random duration between 0 and the exponential cap, retry requests are staggered evenly across time rather than slamming the server in synchronized waves.
 
-$$Delay = (\text{Base Delay} \times 2^{\text{attempt}}) + \text{Random Jitter}$$
+## 📊 Empirical Load Testing
+The simulator was benchmarked using a bulk load script simulating **500 concurrent virtual clients** firing **1,000+ requests** against the active 60% fault-injection layer:
 
-- **Attempt 1:** ~1000ms + random variance
-- **Attempt 2:** ~2000ms + random variance
-- **Attempt 3:** ~4000ms + random variance
-
-## 📊 Empirical Test Observations
-To prove the efficiency of traffic smoothing, the environment was benchmarked under a concurrent load of 100 immediate client requests against the active 60% fault-injection layer:
-
-| Metric Observed | Scenario A (Synchronized Chaos) | Scenario B (Traffic Smoothing) |
+| Metric Observed | Unthrottled Retries | Exponential Backoff + Jitter |
 | :--- | :--- | :--- |
-| **Retry Strategy** | Immediate / Fixed Interval | Exponential Backoff + Random Jitter |
-| **Successful Clears** | **~32%** | **~81%** |
-| **System Impact** | Socket saturation, cascading timeouts | Staggered windows, high availability |
+| **Retry Strategy** | Immediate / Fixed Interval | Exponential Backoff + Full Jitter |
+| **Traffic Profile** | High concurrency spikes | Staggered, smooth retry distribution |
+| **System Impact** | CPU thrashing, immediate socket exhaustion | Controlled request flow, stabilized gateway pressure |
 
 ### 🎯 Key Engineering Takeaways
-- **Downstream Pressure Mitigation:** Splitting the core processor from the gateway reduces concurrent request pressure on target databases and isolates cascading failures.
-- **Dynamic Load Smoothing:** Demonstrates that client-side exponential backoff with randomized jitter successfully stabilizes transaction success rates (improving from ~32% to ~81%) even under a severe 60% downstream service drop.
+- **Traffic Shaping vs. Gateway Throughput:** Under extreme server saturation, overall request throughput is bounded by hardware capacity (~400 req/sec). While backoff cannot invent extra server capacity, it eliminates thundering-herd spikes and spreads incoming load predictably over time.
+- **Resilience Validation:** Demonstrates how client-side backoff paired with randomized jitter protects upstream infrastructure during legacy backend outages.
 
-## 💻 Tech Stack & Infrastructure
-- **Frontend:** HTML5, Tailwind CSS, Async/Await Fetch API, Live Metrics Polling
-- **Backend:** Node.js, Express framework, Inter-service HTTP Proxying
-- **Containerization:** Docker, Multi-Container Docker Compose Execution, Bridge Networking
+## 🔌 API Endpoints
+- `POST /api/recharge` – Simulates a payment transaction; subject to the 60% 504 failure rate.
+- `GET /api/metrics` – Fetches live gateway telemetry (successes, drops, retry counts) for the UI.
+- `POST /api/reset` – Flushes system metrics and resets simulation counters.
 
-## 🚀 How to Run the Cluster Locally
-Ensure you have Docker installed, clone the repo, and boot the entire container network:
-```bash
-docker-compose up --build
+## 💻 Tech Stack
+- **Frontend:** HTML5, Tailwind CSS, Live Metrics Polling
+- **Backend:** Node.js, Express.js (v5)
+
+## 🚀 How to Run Locally
+1. Clone the repository and install dependencies:
+   ```bash
+   npm install
